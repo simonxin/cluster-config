@@ -14,7 +14,7 @@
 # $rootpath: root path to dump the resource yaml
 
 # sample script command:
-# dumpresourceyaml.ps1 -ResourceGroupName $ResourceGroupName -clustername $clustername -rootpath C:\simon\azure\aks\devops
+# ./dumpresourceyaml.ps1 -ResourceGroupName $ResourceGroupName -clustername $clustername -rootpath C:\simon\azure\aks\devops
 
 param
 (
@@ -23,7 +23,8 @@ param
     [parameter(Mandatory = $false)] [String] $rootpath=".\",
     [parameter(Mandatory = $false)] [array] $excludens = @("gatekeeper-system","kube-node-lease","kube-system","kube-public","flux-system"),
     [parameter(Mandatory = $false)] [array] $excluderesources = @("kubernetes","kube-root-ca","default-token"),
-    [parameter(Mandatory = $false)] [String] $targetresources="configmap,secret,daemonset,deployment,service,hpa"
+    [parameter(Mandatory = $false)] [String] $targetresources="configmap,daemonset,deployment,service,hpa", 
+    [parameter(Mandatory = $false)] [array] $removeversiontag = @("creationTimestamp","resourceVersion","selfLink", "uid")
 )
 
 # get ask credential
@@ -38,7 +39,9 @@ function getakscredentials  {
 # Install-AzAksKubectl -Force
 # prepare flux
 # choco install flux
-
+# prepare yaml powershell 
+# Register-PackageSource -Name Nuget.Org -Provider NuGet -Location "https://www.nuget.org/api/v2" -erroraction ignore
+# Install-Package YamlDotNet -force
 
 
 $exportpath = "$rootpath\$clustername"
@@ -73,7 +76,20 @@ resources:
         }
         # try to dump resource yaml file
         write-host "export resoruce yaml: $exportpath\$ns\$resource.yaml"
-        kubectl -n $ns get -o yaml $targetresources $resource --ignore-not-found=true | out-file -filepath "$exportpath\$ns\$resource.yaml" -force
+        $rawtemplate = kubectl -n $ns get -o yaml $targetresources $resource --ignore-not-found=true | ConvertFrom-Yaml
+
+        # steps to remove all version tags
+        $rawtemplate.metadata.selflink = ""
+    
+        foreach ($item in  $rawtemplate.items) {
+            # remove status
+            $item.remove('status')
+            foreach ($key in $removeversiontag) {
+                 $item.metadata.remove($key)
+            }
+        }
+   
+        $rawtemplate | ConvertTo-Yaml | out-file -filepath "$exportpath\$ns\$resource.yaml" -force
         $kustomization+="`n- $resource.yaml"
         
     }
