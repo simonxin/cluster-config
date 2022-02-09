@@ -28,6 +28,7 @@ param
     [parameter(Mandatory = $false)] [String] $targetresources="configmap,daemonset,deployment,service,hpa", 
     [parameter(Mandatory = $false)] [array] $removeversiontag = @("creationTimestamp","resourceVersion","selfLink", "uid"),
     [parameter(Mandatory = $false)][ValidateSet(0,1)] [int] $option = 0
+
 )
 
 # get ask credential
@@ -53,7 +54,7 @@ getakscredentials -ResourceGroupName $ResourceGroupName -clusternameame $cluster
 if ($option -eq 0) {
     $kustomizations = $(kubectl get kustomization -n flux-system -o jsonpath='{.items[*].metadata.name}').split(" ")
     foreach($kustomizations in $kustomizations) {
-        flux reconcile kustomization $kustomizations
+        flux reconcile kustomization $kustomization
     }
 
 } else {
