@@ -53,7 +53,7 @@ getakscredentials -ResourceGroupName $ResourceGroupName -clusternameame $cluster
 # default option is to update kustomization resources. Or use option 1 to dump resource template from existing aks cluster 
 if ($option -eq 0) {
     $kustomizations = $(kubectl get kustomization -n flux-system -o jsonpath='{.items[*].metadata.name}').split(" ")
-    foreach($kustomizations in $kustomizations) {
+    foreach($kustomization in $kustomizations) {
         flux reconcile kustomization $kustomization
     }
 
@@ -63,7 +63,7 @@ $namespaces = $(kubectl get namespace -o jsonpath='{.items[*].metadata.name}').s
 foreach ($ns in $namespaces) {
 
 # define the Kustomization template 
-$kustomization = @"
+$kustomizationtemplate = @"
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -106,11 +106,11 @@ resources:
         }
    
         $rawtemplate | ConvertTo-Yaml | out-file -filepath "$exportpath\$ns\$resource.yaml" -force
-        $kustomization+="`n- $resource.yaml"
+        $kustomizationtemplate+="`n- $resource.yaml"
         
     }
     # dump resource kustomization yaml
-    $kustomization | out-file -filepath "$exportpath\$ns\kustomization.yaml" -force
+    $kustomizationtemplate | out-file -filepath "$exportpath\$ns\kustomization.yaml" -force
 
 }
 
