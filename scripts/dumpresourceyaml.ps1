@@ -16,7 +16,7 @@
 
 
 # sample script command:
-# ./dumpresourceyaml.ps1 -ResourceGroupName $ResourceGroupName -clustername $clustername -rootpath C:\simon\azure\aks\devops -option 1
+# ./dumpresourceyaml.ps1 -ResourceGroupName $ResourceGroupName -clustername $clustername -rootpath C:\simon\azure\aks\devops -option 2
 
 param
 (
@@ -54,10 +54,18 @@ getakscredentials -ResourceGroupName $ResourceGroupName -clusternameame $cluster
 if ($option -eq 0) {
     $kustomizations = $(kubectl get kustomization -n flux-system -o jsonpath='{.items[*].metadata.name}').split(" ")
     foreach($kustomization in $kustomizations) {
-        flux reconcile kustomization $kustomization
+        flux resume kustomization $kustomization
     }
 
-} else {
+} elseif ($option -eq 1) {
+
+    # post-deployment suspend kustomization 
+    $kustomizations = $(kubectl get kustomization -n flux-system -o jsonpath='{.items[*].metadata.name}').split(" ")
+    foreach($kustomization in $kustomizations) {
+        flux suspend kustomization $kustomization
+    }
+
+} elseif($option -eq 2) {
 $exportpath = "$rootpath\$clustername"
 $namespaces = $(kubectl get namespace -o jsonpath='{.items[*].metadata.name}').split(" ") | where {$_ -notin $excludens}
 foreach ($ns in $namespaces) {
