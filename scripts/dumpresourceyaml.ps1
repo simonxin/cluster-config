@@ -12,9 +12,11 @@
 # $excluderesources: resource name which will be skipped during scan
 # $targetresources: resource types for scan
 # $rootpath: root path to dump the resource yaml
+# $option: 0 (default) = reconcile kucstomization resources; 1 = dump resource yaml
+
 
 # sample script command:
-# ./dumpresourceyaml.ps1 -ResourceGroupName $ResourceGroupName -clustername $clustername -rootpath C:\simon\azure\aks\devops
+# ./dumpresourceyaml.ps1 -ResourceGroupName $ResourceGroupName -clustername $clustername -rootpath C:\simon\azure\aks\devops -option 1
 
 param
 (
@@ -24,7 +26,8 @@ param
     [parameter(Mandatory = $false)] [array] $excludens = @("gatekeeper-system","kube-node-lease","kube-system","kube-public","flux-system"),
     [parameter(Mandatory = $false)] [array] $excluderesources = @("kubernetes","kube-root-ca","default-token"),
     [parameter(Mandatory = $false)] [String] $targetresources="configmap,daemonset,deployment,service,hpa", 
-    [parameter(Mandatory = $false)] [array] $removeversiontag = @("creationTimestamp","resourceVersion","selfLink", "uid")
+    [parameter(Mandatory = $false)] [array] $removeversiontag = @("creationTimestamp","resourceVersion","selfLink", "uid"),
+    [parameter(Mandatory = $false)][ValidateSet(0,1)] [int] $option = 0
 )
 
 # get ask credential
@@ -38,12 +41,22 @@ function getakscredentials  {
 # prepare aks cli
 # Install-AzAksKubectl -Force
 # prepare flux
+# Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
 # choco install flux
 # prepare yaml powershell 
 # Register-PackageSource -Name Nuget.Org -Provider NuGet -Location "https://www.nuget.org/api/v2" -erroraction ignore
 # Install-Package YamlDotNet -force
+# load aks credentail 
+getakscredentials -ResourceGroupName $ResourceGroupName -clusternameame $clustername
 
+# default option is to update kustomization resources. Or use option 1 to dump resource template from existing aks cluster 
+if ($option -eq 0) {
+    $kustomizations = $(kubectl get kustomization -n flux-system -o jsonpath='{.items[*].metadata.name}').split(" ")
+    foreach($kustomizations in $kustomizations) {
+        flux reconcile kustomization $kustomizations
+    }
 
+} else {
 $exportpath = "$rootpath\$clustername"
 $namespaces = $(kubectl get namespace -o jsonpath='{.items[*].metadata.name}').split(" ") | where {$_ -notin $excludens}
 foreach ($ns in $namespaces) {
@@ -69,11 +82,13 @@ resources:
                 $_
             } 
         } | Select-Object -unique
-
-    foreach ($resource in $resources) {
-        if (!(test-path -path "$exportpath\$ns")) {
+        
+    if (!(test-path -path "$exportpath\$ns")) {
             mkdir "$exportpath\$ns"
         }
+
+    foreach ($resource in $resources) {
+
         # try to dump resource yaml file
         write-host "export resoruce yaml: $exportpath\$ns\$resource.yaml"
         $rawtemplate = kubectl -n $ns get -o yaml $targetresources $resource --ignore-not-found=true | ConvertFrom-Yaml
@@ -98,4 +113,4 @@ resources:
 
 }
 
-
+}
