@@ -62,9 +62,16 @@ getakscredentials -ResourceGroupName $ResourceGroupName -clustername $clusternam
 
 # default option is to update kustomization resources. Or use option 1 to dump resource template from existing aks cluster 
 if ($option -eq 0) {
+
+    # trigger updates for flux first
+    flux resume kustomization "flux-system"
+
+    # trigger updates for all kustomizations
     $kustomizations = $(kubectl get kustomization -n flux-system -o jsonpath='{.items[*].metadata.name}').split(" ")
     foreach($kustomization in $kustomizations) {
-        flux resume kustomization $kustomization
+        if ($kustomization -ne "flux-system") {
+            flux resume kustomization $kustomization
+        }
     }
 
 } elseif ($option -eq 1) {
